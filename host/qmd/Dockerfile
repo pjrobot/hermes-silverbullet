@@ -5,6 +5,11 @@ FROM node:22-bookworm
 ARG QMD_VERSION=2.8.3
 RUN npm install -g @tobilu/qmd@${QMD_VERSION} && npm cache clean --force
 
+# Owned by node before the switch: a named volume mounted here inherits the
+# directory's ownership from the image, and without it Docker creates /cache
+# root-owned and qmd can neither download its models nor write its index.
+RUN mkdir -p /cache /config && chown node:node /cache /config
+
 # uid 1000, matching the space owner, so nothing it writes lands root-owned.
 USER node
 

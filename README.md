@@ -40,9 +40,10 @@ flowchart LR
 
 ## Install
 
-Two parts: the **host** (mount the space, get ownership and history right),
-then the **agent side** — the Hermes plugin, or the same files by hand for
-other agents.
+This assumes a working Hermes Agent: installed, with a model provider
+configured. Two parts follow: the **host** (mount the space, get ownership and
+history right), then the **agent side** — the Hermes plugin, or the same files
+by hand for other agents.
 
 ### 1. Host
 
@@ -72,12 +73,17 @@ Then:
 
 ### 2a. Hermes: the plugin
 
+The plugin lives in this repo's [`plugin/`](plugin/) folder. Install it from
+wherever your `hermes` CLI runs — with the compose layout, inside the agent
+container:
+
 ```bash
-hermes plugins install pjrobot/hermes-silverbullet --enable
+docker compose exec hermes hermes plugins install pjrobot/hermes-silverbullet/plugin --enable
 ```
 
 Then set who the notes belong to, and anything else that differs from the
-defaults, in `config.yaml`:
+defaults, in Hermes' `config.yaml` (with the compose layout,
+`$HERMES_DATA_DIR/config.yaml` on the host):
 
 ```yaml
 plugins:
@@ -90,9 +96,10 @@ plugins:
         search_enabled: false     # true once the qmd MCP server is configured
 ```
 
-Restart the gateway; the plugin applies from the next new session. It adds:
+Restart the gateway once after installing; after that, settings changes apply
+from the next new session (`/new`). The plugin adds:
 
-- **An always-on prompt section** rendered from [`prompt.md`](prompt.md). It
+- **An always-on prompt section** rendered from [`plugin/prompt.md`](plugin/prompt.md). It
   has to be always on rather than a skill: "capture knowledge without being
   asked" must apply in sessions where notes are not the topic, which is when
   an on-demand skill would never load.
@@ -102,9 +109,9 @@ Restart the gateway; the plugin applies from the next new session. It adds:
 
 ### 2b. Other agents, or Hermes without the plugin
 
-The same files work by hand: paste [`prompt.md`](prompt.md) into your agent's
-persona or system prompt with the placeholders filled in, and give it the
-[`skills/`](skills/) directory. They are standard `SKILL.md` files. Without
+The same files work by hand: paste [`plugin/prompt.md`](plugin/prompt.md) into
+your agent's persona or system prompt with the placeholders filled in, and give
+it the [`plugin/skills/`](plugin/skills/) directory. They are standard `SKILL.md` files. Without
 the plugin they are unnamespaced, so the prompt should say `notes-vault`.
 
 ## Why SilverBullet
@@ -144,6 +151,12 @@ parallel one you would later merge by hand.
 The safeguard is **disclosure plus history**, not restriction. Every edit is
 announced in the chat, and the snapshot watcher makes it recoverable.
 
+Be clear about what that history is: a git repo on the same disk, inside the
+directory the agent can write to. A skill tells the agent never to touch
+`.git`, but nothing enforces it, and a disk failure takes the history with the
+notes. Back the space up off the machine, or push the repo somewhere the agent
+cannot reach.
+
 ### Frontmatter is the interface
 
 Because SilverBullet queries frontmatter, anything the agent produces on a
@@ -160,7 +173,9 @@ next run can read the folder and pick the area visited least recently.
 
 Hermes has no built-in document retrieval, so a vault past a few dozen pages
 needs search. [qmd](https://github.com/tobi/qmd) does BM25, vector and
-optional LLM reranking entirely on-device, and serves it over MCP.
+optional LLM reranking entirely on-device. Hermes' optional `qmd` skill drives
+it as a local CLI; this kit runs it as a long-lived MCP server instead, so the
+~2 GB of models stay loaded between queries.
 
 The evidence so far is modest. In one test of 5 questions over ~110 markdown
 files — with reranking off and the vector index incomplete — plain
@@ -169,7 +184,8 @@ ranked a distractor first. So the skill makes file tools the primary path and
 qmd the fallback for vague, concept-shaped questions. If your vault stays
 small, leave qmd out.
 
-To add it: seed `QMD_CONFIG_DIR` from [`host/qmd/index.yml`](host/qmd/index.yml),
+To add it: seed `QMD_CONFIG_DIR` from [`host/qmd/index.yml`](host/qmd/index.yml)
+as uid 1000 (see [`host/.env.example`](host/.env.example)),
 `docker compose up -d qmd`, merge the `mcp_servers` block of
 [`host/hermes-config.snippet.yaml`](host/hermes-config.snippet.yaml), add
 [`host/qmd/refresh.sh`](host/qmd/refresh.sh) to cron (hourly), and set the
@@ -182,8 +198,9 @@ Each of these cost time to find.
 - **Everything that writes must be the same uid.** SilverBullet cannot save a
   page owned by anyone else; it answers with a 500. Three things conspire
   against this:
-  - SilverBullet's image ignores `PUID`/`PGID` (its entrypoint runs the binary
-    directly), so without `user:` it runs as root.
+  - SilverBullet's image ignores `PUID`/`PGID` — despite what its install docs
+    say, the 2.10.0 entrypoint runs the binary directly — so without `user:` it
+    runs as root.
   - With Hermes' **docker terminal backend**, file tools run inside the sandbox
     sidecar, which is root by default — every note the agent touches becomes
     uneditable. Set `terminal.docker_run_as_host_user: true`.

@@ -12,8 +12,15 @@ import re
 from pathlib import Path
 from string import Template
 
+import yaml
+
 _DIR = Path(__file__).parent
 _COMMENT = re.compile(r"<!--.*?-->\s*", re.S)
+_FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n", re.S)
+
+# Hermes DROPS a section over this size rather than truncating it, with only a
+# log warning to show for it. The rendered text is ~1,000 characters today.
+_MAX_CHARS = 2000
 
 
 def _render(ctx) -> str:
@@ -33,12 +40,22 @@ def _render(ctx) -> str:
     return text
 
 
+def _frontmatter(skill_md: Path) -> dict:
+    match = _FRONTMATTER.match(skill_md.read_text())
+    return (yaml.safe_load(match.group(1)) or {}) if match else {}
+
+
 def register(ctx):
     for child in sorted((_DIR / "skills").iterdir()):
         skill_md = child / "SKILL.md"
         if child.is_dir() and skill_md.exists():
-            ctx.register_skill(child.name, skill_md)
+            # The skills list shows the description passed here, not the
+            # SKILL.md's own, so without it both skills list blank.
+            meta = _frontmatter(skill_md)
+            ctx.register_skill(child.name, skill_md, meta.get("description", ""), meta)
 
-    # Rendered once at load: settings changes take effect after a gateway
-    # restart, then on each new session.
-    ctx.register_system_prompt_section(f"{ctx.manifest.name}.vault", _render(ctx), max_chars=2000)
+    # A callable is evaluated once per new session and get_config re-reads
+    # config.yaml, so a settings change applies on the next /new -- no
+    # gateway restart.
+    ctx.register_system_prompt_section(
+        f"{ctx.manifest.name}.vault", lambda _session: _render(ctx), max_chars=_MAX_CHARS)

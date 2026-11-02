@@ -6,6 +6,13 @@
 # exec: prefixing `docker exec` would only renice the client.
 set -euo pipefail
 
+# Skip quietly while the container is down (mid-rebuild), rather than mail a
+# cron error that the next run resolves on its own.
+if ! docker ps --format '{{.Names}}' | grep -qx qmd; then
+  echo "$(date -Is) qmd not running, skipping"
+  exit 0
+fi
+
 NICE="nice -n 19 ionice -c 3"
 # Fetches any model the config needs but the cache lacks. Without it the
 # generation and rerank models download during the first query instead, which
