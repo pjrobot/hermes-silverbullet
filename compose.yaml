@@ -1,0 +1,67 @@
+# SilverBullet, Hermes Agent and qmd sharing one notes space.
+#
+# A minimal single-host layout. Put SilverBullet behind your own reverse proxy
+# and auth; nothing here is meant to face the internet directly.
+
+services:
+  silverbullet:
+    image: ghcr.io/silverbulletmd/silverbullet:${SILVERBULLET_VERSION}
+    restart: unless-stopped
+    # Not PUID/PGID: the published image runs the binary directly and reads
+    # neither, so without this it runs as root and writes root-owned pages.
+    user: "1000:1000"
+    ports:
+      - "3000:3000"
+    volumes:
+      # A LOCAL directory. inotify on this is what makes agent writes appear
+      # live in the editor, and inotify does not work over NFS.
+      - ${SPACE_DIR}:/space
+    environment:
+      # Upstream defaults this to `local`, letting plugs run shell commands in
+      # the container -- not something a browser-facing editor needs.
+      SB_SHELL_BACKEND: "off"
+      SB_USER: ${SB_USER}
+
+  hermes:
+    image: nousresearch/hermes-agent:${HERMES_VERSION}
+    restart: unless-stopped
+    command: gateway run
+    volumes:
+      - ${HERMES_DATA_DIR}:/opt/data
+      # For the docker terminal backend's sandbox sidecar. Root-equivalent on
+      # the host; see the Hermes docs before keeping this.
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${SPACE_DIR}:/notes
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      # The image sets this to /opt/data alone, which hard-blocks write_file
+      # and patch on /notes. Keep /opt/data or the agent loses its own state.
+      HERMES_WRITE_SAFE_ROOT: "/opt/data:/tmp:/notes"
+    networks:
+      - default
+      - search
+
+  qmd:
+    build: ./qmd
+    container_name: qmd
+    restart: unless-stopped
+    # No ports: qmd's endpoints are unauthenticated, so being reachable only
+    # from the `search` network is the access control.
+    volumes:
+      - ${SPACE_DIR}:/notes:ro
+      - ./qmd/index.yml:/config/index.yml
+      - qmd-cache:/cache
+    environment:
+      # --host 0.0.0.0 disables qmd's Host-header check; this re-enables it.
+      QMD_ALLOWED_HOSTS: "qmd,qmd:8181,localhost,localhost:8181"
+    networks:
+      - search
+
+networks:
+  # Not `internal`: qmd downloads its models on first boot.
+  search:
+
+volumes:
+  # ~2GB of GGUF models; kept out of the image so a rebuild doesn't re-pull.
+  qmd-cache:

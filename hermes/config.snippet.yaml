@@ -1,0 +1,19 @@
+# Merge into Hermes' /opt/data/config.yaml.
+
+terminal:
+  backend: docker
+  docker_volumes:
+    # A HOST path: sandbox sidecars are created by the host's dockerd over the
+    # mounted socket, so a path inside the agent container means nothing here.
+    # Reaches newly created sidecars only -- remove old ones after adding it.
+    - "/srv/silverbullet/space:/notes"
+
+mcp_servers:
+  qmd:
+    # HTTP, not stdio: stdio relaunches qmd per client and reloads ~2GB of
+    # models each time. The long-lived server keeps them resident.
+    url: "http://qmd:8181/mcp"
+    enabled: true
+    # The first query after idle reloads the models.
+    timeout: 120
+    connect_timeout: 30
