@@ -19,15 +19,18 @@ comes from three properties that combine well:
    frontmatter (`status: open`, `area: billing`) and its output sorts itself
    into views you never have to maintain.
 
-```text
-                 ┌──────────── host ─────────────────────────────┐
-  browser/PWA ──▶│ silverbullet ──┐                              │
-                 │                ▼                              │
-                 │      /srv/silverbullet/space  ◀── hourly git  │
-                 │        ▲ rw         ▲ rw         ▲ ro snapshot│
-                 │   hermes agent   hermes sandbox   qmd (search)│
-                 │        └──── MCP over private network ───┘    │
-                 └───────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    you(["You: browser or phone PWA"]) <--> sb["SilverBullet"]
+
+    subgraph host["Host"]
+        sb <-->|"read-write, live via inotify"| space[("Space: plain .md files")]
+        agent["Hermes agent"] <-->|"read-write"| space
+        sandbox["Hermes sandbox"] <-->|"read-write"| space
+        qmd["qmd search"] -->|"read-only"| space
+        git["Hourly git snapshot"] -->|"commits"| space
+        agent -->|"MCP over private network"| qmd
+    end
 ```
 
 It is a kit of parts rather than an installer: copy what you want.
