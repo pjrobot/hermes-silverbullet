@@ -40,23 +40,43 @@ flowchart LR
 
 ## Install
 
-This assumes a working Hermes Agent: installed, with a model provider
+This assumes you already run Hermes Agent in Docker, with a model provider
 configured. Two parts follow: the **host** (mount the space, get ownership and
 history right), then the **agent side** — the Hermes plugin, or the same files
 by hand for other agents.
 
 ### 1. Host
 
+Prepare the space and start SilverBullet:
+
 ```bash
 cd host
 sudo ./scripts/prepare-space.sh /srv/silverbullet/space 1000
 cp .env.example .env    # set SB_USER, versions and paths
-docker compose up -d silverbullet hermes
+docker compose up -d silverbullet
 ```
 
-[`host/compose.yaml`](host/compose.yaml) is a reference layout, not a
-requirement: what matters is that SilverBullet, the agent and the snapshot
-watcher all see the same directory and all write as the same uid.
+Then give your existing Hermes container the space. In whatever defines it
+(its compose file, or `docker run` flags), add:
+
+```yaml
+    volumes:
+      - /srv/silverbullet/space:/notes
+    environment:
+      # Hermes' file tools refuse to write outside this list; keep /opt/data.
+      HERMES_WRITE_SAFE_ROOT: "/opt/data:/tmp:/notes"
+```
+
+Hermes' `PUID`/`PGID` must match the space's owner (1000 above), so the notes
+it writes are ones SilverBullet can save. Recreate the container to pick the
+mount up.
+
+Starting from scratch instead? The `hermes` service in
+[`host/compose.yaml`](host/compose.yaml) is a complete reference with these
+already set: `docker compose up -d hermes`, then configure Hermes as its own
+docs describe before going on. Either way, what matters is that SilverBullet,
+the agent and the snapshot watcher all see the same directory and all write as
+the same uid.
 
 Then:
 
