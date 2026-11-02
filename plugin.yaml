@@ -1,0 +1,34 @@
+name: silverbullet
+version: 0.1.0
+manifest_version: 2
+api_version: 1
+description: >-
+  Use a SilverBullet space as the agent's shared knowledge base: an always-on
+  prompt section that has the agent capture durable knowledge into the vault,
+  plus skills for editing and searching it. The host side (mounting the space,
+  ownership, history) lives in host/ and is set up separately.
+author: Peter Ramsay
+license: MIT
+homepage: https://github.com/pjrobot/hermes-silverbullet
+tags: [notes, silverbullet, knowledge-base, markdown]
+config_schema:
+  owner_name:
+    type: str
+    default: "the user"
+    label: Owner's name
+    description: Whose notes these are, as the agent should refer to them.
+  notes_path:
+    type: str
+    default: /notes
+    label: Vault path
+    description: Where the space is mounted, as the agent's file tools see it.
+  agent_folder:
+    type: str
+    default: Hermes
+    label: Agent's folder
+    description: Folder inside the vault for notes the agent writes itself.
+  search_enabled:
+    type: bool
+    default: false
+    label: qmd search configured
+    description: Tell the agent about the qmd-search skill. Only enable once a qmd MCP server named `qmd` is configured.

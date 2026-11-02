@@ -1,0 +1,36 @@
+# Merge into Hermes' /opt/data/config.yaml.
+
+# --- Only if you use the docker terminal backend -----------------------------
+# Skip this block on the default `local` backend: there the file tools run in
+# the agent container itself, as PUID, and the compose mount is all they need.
+#
+# With `backend: docker`, file tools (write_file, patch) run INSIDE the sandbox
+# sidecar. Two consequences:
+#   - The sidecar needs its own mount of the space. Without it, writes to
+#     /notes "succeed" into the sidecar's own filesystem, where SilverBullet
+#     never sees them.
+#   - The sidecar runs as root by default, so every note the agent writes or
+#     patches lands root-owned and SilverBullet can no longer save it.
+#     docker_run_as_host_user runs it as the gateway's uid instead.
+#
+# Both reach newly created sidecars only. After changing them, remove the old
+# ones -- stopped ones too, since Hermes restarts those with their old settings:
+#   docker ps -aq --filter label=hermes-agent=1 | xargs -r docker rm -f
+terminal:
+  docker_run_as_host_user: true
+  docker_volumes:
+    # A HOST path (your SPACE_DIR): the host's dockerd creates sidecars, so a
+    # path inside the agent container means nothing to it.
+    - "/srv/silverbullet/space:/notes"
+
+# --- Only if you run qmd -----------------------------------------------------
+# Then set the plugin's search_enabled setting so the agent knows about it.
+mcp_servers:
+  qmd:
+    # HTTP, not stdio: stdio relaunches qmd per client and reloads ~2GB of
+    # models each time. The long-lived server keeps them resident.
+    url: "http://qmd:8181/mcp"
+    enabled: true
+    # The first query after idle reloads the models.
+    timeout: 120
+    connect_timeout: 30

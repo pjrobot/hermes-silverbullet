@@ -1,7 +1,8 @@
-# SilverBullet, Hermes Agent and qmd sharing one notes space.
+# SilverBullet, Hermes Agent and qmd sharing one notes space, on one host.
 #
-# A minimal single-host layout. Put SilverBullet behind your own reverse proxy
-# and auth; nothing here is meant to face the internet directly.
+# A minimal layout to adapt, not a hardened deployment. SilverBullet is bound to
+# loopback: put your own reverse proxy (and TLS) in front of it to reach it
+# from a phone.
 
 services:
   silverbullet:
@@ -9,18 +10,21 @@ services:
     restart: unless-stopped
     # Not PUID/PGID: the published image runs the binary directly and reads
     # neither, so without this it runs as root and writes root-owned pages.
-    user: "1000:1000"
+    user: "${SPACE_UID}:${SPACE_GID}"
     ports:
-      - "3000:3000"
+      # Loopback only. Docker's published ports bypass host firewalls like
+      # ufw, so "0.0.0.0" here would expose your notes to the LAN as-is.
+      - "127.0.0.1:3000:3000"
     volumes:
       # A LOCAL directory. inotify on this is what makes agent writes appear
-      # live in the editor, and inotify does not work over NFS.
+      # live in the editor.
       - ${SPACE_DIR}:/space
     environment:
-      # Upstream defaults this to `local`, letting plugs run shell commands in
-      # the container -- not something a browser-facing editor needs.
+      # Plugs can run shell commands in the container when this is enabled --
+      # not something an editor the agent also writes to needs.
       SB_SHELL_BACKEND: "off"
-      SB_USER: ${SB_USER}
+      # Required: an empty SB_USER means no login at all.
+      SB_USER: ${SB_USER:?set SB_USER to username:password}
 
   hermes:
     image: nousresearch/hermes-agent:${HERMES_VERSION}
@@ -28,13 +32,13 @@ services:
     command: gateway run
     volumes:
       - ${HERMES_DATA_DIR}:/opt/data
-      # For the docker terminal backend's sandbox sidecar. Root-equivalent on
-      # the host; see the Hermes docs before keeping this.
-      - /var/run/docker.sock:/var/run/docker.sock
       - ${SPACE_DIR}:/notes
+      # Only for `terminal.backend: docker` -- see hermes-config.snippet.yaml.
+      # Root-equivalent on the host; read the Hermes docs before adding it.
+      # - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      PUID: "1000"
-      PGID: "1000"
+      PUID: "${SPACE_UID}"
+      PGID: "${SPACE_GID}"
       # The image sets this to /opt/data alone, which hard-blocks write_file
       # and patch on /notes. Keep /opt/data or the agent loses its own state.
       HERMES_WRITE_SAFE_ROOT: "/opt/data:/tmp:/notes"
@@ -50,7 +54,10 @@ services:
     # from the `search` network is the access control.
     volumes:
       - ${SPACE_DIR}:/notes:ro
-      - ./qmd/index.yml:/config/index.yml
+      # A directory, seeded once from qmd/index.yml: qmd rewrites its config
+      # in place (it appends a models: block), so it must not be the copy in
+      # this repo.
+      - ${QMD_CONFIG_DIR}:/config
       - qmd-cache:/cache
     environment:
       # --host 0.0.0.0 disables qmd's Host-header check; this re-enables it.

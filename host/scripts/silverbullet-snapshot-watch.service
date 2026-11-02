@@ -6,10 +6,11 @@ After=local-fs.target
 
 [Service]
 Type=simple
-# The space owner, so commits never leave root-owned objects in .git.
+# The space owner (SPACE_UID), so commits never leave objects in .git that
+# another writer cannot write past.
 User=1000
 Group=1000
-ExecStart=/opt/hermes-silverbullet/scripts/snapshot-watch.sh /srv/silverbullet/space
+ExecStart=/opt/hermes-silverbullet/host/scripts/snapshot-watch.sh /srv/silverbullet/space
 Restart=always
 RestartSec=10
 NoNewPrivileges=yes

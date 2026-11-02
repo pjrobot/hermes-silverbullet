@@ -7,5 +7,9 @@
 set -euo pipefail
 
 NICE="nice -n 19 ionice -c 3"
+# Fetches any model the config needs but the cache lacks. Without it the
+# generation and rerank models download during the first query instead, which
+# can outlast the MCP timeout. A no-op once the cache is warm.
+docker exec qmd $NICE qmd pull
 docker exec qmd $NICE qmd update
 docker exec qmd $NICE qmd embed --max-docs-per-batch 16

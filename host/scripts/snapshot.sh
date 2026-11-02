@@ -14,7 +14,9 @@ cd "${1:?space directory}"
 exec 9>.git/snapshot.lock
 flock 9
 
-git_c=(git -c user.name=silverbullet-snapshot -c user.email=snapshot@localhost)
+# gc.autoDetach=false: a detached `gc --auto` inherits fd 9 and would hold the
+# lock after this script exits, stalling the next snapshot for no reason.
+git_c=(git -c user.name=silverbullet-snapshot -c user.email=snapshot@localhost -c gc.autoDetach=false)
 
 "${git_c[@]}" add -A
 if "${git_c[@]}" diff --cached --quiet --exit-code; then

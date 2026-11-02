@@ -1,3 +1,5 @@
+# Seed copy: compose mounts QMD_CONFIG_DIR, and qmd rewrites the file there.
+#
 # The [[WikiWord]] hint is worth stating: it is SilverBullet's link syntax, and
 # a result mentioning one is a lead the agent can follow.
 global_context: "Personal notes. If you see a relevant [[WikiWord]] link, search for that WikiWord to get more context."
@@ -6,8 +8,8 @@ collections:
   notes:
     path: "/notes"
     pattern: "**/*.md"
-    # A list of prefix -> description, surfaced with results so the agent can
-    # tell your notes from its own.
+    # Path prefix -> description, surfaced with results so the agent can tell
+    # your notes from its own.
     context:
       "/": "The user's SilverBullet notes vault: durable reference material."
       "/Hermes": "Notes written by the Hermes agent itself: decisions, gotchas and measurements."

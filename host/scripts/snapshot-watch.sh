@@ -16,24 +16,33 @@ QUIET="${2:-60}"
 MAX_DELAY="${3:-600}"
 SNAPSHOT="$(dirname "$(readlink -f "$0")")/snapshot.sh"
 
+pending=0
+pending_since=0
+
 # A failed commit must not kill the watcher: the change is still on disk, and
 # the next commit's `git add -A` picks it up.
 snapshot() {
   "$SNAPSHOT" "$SPACE" || echo "WARNING: snapshot failed; will retry on the next change" >&2
-  pending_since=0
+  pending=0
 }
-
-# Anything changed while the watcher was down. This, plus every commit taking
-# the whole space, is why no backup timer is needed.
-pending_since=0
-snapshot
 
 # .git is excluded or every commit would trigger the next one; _plug/ is
 # downloaded plug code that git ignores anyway. -r adds watches for folders
 # created later.
-exec 3< <(inotifywait -m -r -q \
+#
+# stderr is merged in so the loop below can see "Watches established."; any
+# other diagnostic just reads as an event, which costs at most one no-op commit.
+exec 3< <(inotifywait -m -r \
   -e close_write -e moved_to -e moved_from -e delete -e create \
-  --exclude '/(\.git|_plug)(/|$)' --format '%w%f' "$SPACE")
+  --exclude '/(\.git|_plug)(/|$)' --format '%w%f' "$SPACE" 2>&1)
+
+# Snapshot only once the watches exist, so nothing can change unseen between
+# the two. This commits anything changed while the watcher was down, which --
+# with every commit taking the whole space -- is why no backup timer is needed.
+while read -r -u 3 line; do
+  [[ "$line" == "Watches established." ]] && break
+done
+snapshot
 
 while true; do
   # rc 0: an event. rc > 128: QUIET seconds passed with none. Anything else is
@@ -41,13 +50,16 @@ while true; do
   read -r -t "$QUIET" -u 3 _ && rc=0 || rc=$?
 
   if (( rc == 0 )); then
-    (( pending_since )) || pending_since=$SECONDS
+    if (( ! pending )); then
+      pending=1
+      pending_since=$SECONDS
+    fi
     # Continuous editing never goes quiet; checkpoint it anyway.
     if (( SECONDS - pending_since >= MAX_DELAY )); then
       snapshot
     fi
   elif (( rc > 128 )); then
-    if (( pending_since )); then
+    if (( pending )); then
       snapshot
     fi
   else
