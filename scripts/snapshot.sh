@@ -1,12 +1,18 @@
 #!/bin/bash
-# Hourly git snapshot of the SilverBullet space. Run as the space owner, e.g.
-#   17 * * * * /path/to/snapshot.sh /srv/silverbullet/space
+# Git snapshot of the SilverBullet space. Run by snapshot-watch.sh, or by
+# hand, as the space owner:
+#   ./snapshot.sh /srv/silverbullet/space
 #
 # This is what makes an agent's (or your own) overwrite recoverable. Commits
-# only when something changed, so quiet hours leave no empty commits.
+# only when something changed, so quiet days leave no empty commits.
 set -euo pipefail
 
 cd "${1:?space directory}"
+
+# A manual run can coincide with the watcher's. Without the lock the second
+# one dies on git's index.lock and reports a failure that isn't one.
+exec 9>.git/snapshot.lock
+flock 9
 
 git_c=(git -c user.name=silverbullet-snapshot -c user.email=snapshot@localhost)
 

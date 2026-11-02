@@ -28,7 +28,7 @@ flowchart LR
         agent["Hermes agent"] <-->|"read-write"| space
         sandbox["Hermes sandbox"] <-->|"read-write"| space
         qmd["qmd search"] -->|"read-only"| space
-        git["Hourly git snapshot"] -->|"commits"| space
+        git["Snapshot watcher"] -->|"commits on change"| space
         agent -->|"MCP over private network"| qmd
     end
 ```
@@ -41,7 +41,7 @@ It is a kit of parts rather than an installer: copy what you want.
 | --- | --- |
 | [`compose.yaml`](compose.yaml) | SilverBullet, Hermes and qmd on one host, sharing the space |
 | [`scripts/prepare-space.sh`](scripts/prepare-space.sh) | One-time ownership, default ACL and git setup for the space |
-| [`scripts/snapshot.sh`](scripts/snapshot.sh) | Hourly git snapshot (SilverBullet has no page history) |
+| [`scripts/snapshot-watch.sh`](scripts/snapshot-watch.sh) | Commits the space to git when it changes (SilverBullet has no page history), with a [systemd unit](scripts/silverbullet-snapshot-watch.service) |
 | [`hermes/config.snippet.yaml`](hermes/config.snippet.yaml) | The `config.yaml` pieces: sandbox mount and qmd MCP server |
 | [`hermes/SOUL.snippet.md`](hermes/SOUL.snippet.md) | The one paragraph of persona that makes the agent use the vault |
 | [`skills/`](skills/) | Two Hermes skills: how to edit the vault, how to search it |
@@ -64,9 +64,9 @@ Then:
    filling in the name. Start a session with `/new` to pick it up.
 3. Copy [`skills/`](skills/) into `/opt/data/skills/`.
 4. Copy [`vault/Hermes/_index.md`](vault/Hermes/_index.md) into the space.
-5. Add `scripts/snapshot.sh` (`17 * * * *`) and `qmd/refresh.sh`
-   (`47 * * * *`) to the host's crontab. They are offset so that a note is
-   written, committed and indexed without the two jobs colliding.
+5. Install `inotify-tools`, then enable the snapshot watcher from
+   [`scripts/silverbullet-snapshot-watch.service`](scripts/silverbullet-snapshot-watch.service).
+6. Add `qmd/refresh.sh` to the host's crontab (`47 * * * *`).
 
 ## Why SilverBullet and not Obsidian
 
@@ -103,7 +103,8 @@ existing note of yours when that note already covers the topic, rather than
 starting a parallel one you would later merge by hand.
 
 The safeguard is **disclosure plus history**, not restriction. Every edit is
-announced in the chat, and the hourly git snapshot makes it recoverable.
+announced in the chat, and a git snapshot taken when the space changes makes it
+recoverable.
 
 ### Frontmatter is the interface
 

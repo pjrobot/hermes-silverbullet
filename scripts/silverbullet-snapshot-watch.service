@@ -1,0 +1,19 @@
+# Copy to /etc/systemd/system/, adjust the paths and user, then:
+#   systemctl daemon-reload && systemctl enable --now silverbullet-snapshot-watch
+[Unit]
+Description=Commit the SilverBullet space to git when it changes
+After=local-fs.target
+
+[Service]
+Type=simple
+# The space owner, so commits never leave root-owned objects in .git.
+User=1000
+Group=1000
+ExecStart=/opt/hermes-silverbullet/scripts/snapshot-watch.sh /srv/silverbullet/space
+Restart=always
+RestartSec=10
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
